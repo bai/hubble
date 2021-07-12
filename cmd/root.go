@@ -21,15 +21,14 @@ import (
 	"github.com/cilium/hubble/cmd/common/conn"
 	"github.com/cilium/hubble/cmd/common/template"
 	"github.com/cilium/hubble/cmd/common/validate"
-	"github.com/cilium/hubble/cmd/completion"
 	cmdConfig "github.com/cilium/hubble/cmd/config"
-	"github.com/cilium/hubble/cmd/node"
+	"github.com/cilium/hubble/cmd/list"
 	"github.com/cilium/hubble/cmd/observe"
-	"github.com/cilium/hubble/cmd/peer"
 	"github.com/cilium/hubble/cmd/record"
 	"github.com/cilium/hubble/cmd/reflect"
 	"github.com/cilium/hubble/cmd/status"
 	"github.com/cilium/hubble/cmd/version"
+	"github.com/cilium/hubble/cmd/watch"
 	"github.com/cilium/hubble/pkg"
 	"github.com/cilium/hubble/pkg/logger"
 
@@ -91,14 +90,13 @@ func NewWithViper(vp *viper.Viper) *cobra.Command {
 
 	rootCmd.AddCommand(
 		cmdConfig.New(vp),
-		completion.New(),
-		node.New(vp),
+		list.New(vp),
 		observe.New(vp),
-		peer.New(vp),
 		record.New(vp),
 		reflect.New(vp),
 		status.New(vp),
 		version.New(),
+		watch.New(vp),
 	)
 	return rootCmd
 }

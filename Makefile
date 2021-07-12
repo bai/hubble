@@ -1,4 +1,5 @@
-GO := CGO_ENABLED=0 go
+GO := go
+GO_BUILD = CGO_ENABLED=0 $(GO) build
 INSTALL = $(QUIET)install
 BINDIR ?= /usr/local/bin
 TARGET=hubble
@@ -14,13 +15,16 @@ RELEASE_GID ?= $(shell id -g)
 
 TEST_TIMEOUT ?= 5s
 
+GOLANGCILINT_WANT_VERSION = 1.41.1
+GOLANGCILINT_VERSION = $(shell golangci-lint version 2>/dev/null)
+
 all: hubble
 
 hubble:
-	$(GO) build $(if $(GO_TAGS),-tags $(GO_TAGS)) -ldflags "-w -s -X 'github.com/cilium/hubble/pkg.GitBranch=${GIT_BRANCH}' -X 'github.com/cilium/hubble/pkg.GitHash=$(GIT_HASH)' -X 'github.com/cilium/hubble/pkg.Version=${VERSION}'" -o $(TARGET)
+	$(GO_BUILD) $(if $(GO_TAGS),-tags $(GO_TAGS)) -ldflags "-w -s -X 'github.com/cilium/hubble/pkg.GitBranch=${GIT_BRANCH}' -X 'github.com/cilium/hubble/pkg.GitHash=$(GIT_HASH)' -X 'github.com/cilium/hubble/pkg.Version=${VERSION}'" -o $(TARGET)
 
 release:
-	docker run --env "RELEASE_UID=$(RELEASE_UID)" --env "RELEASE_GID=$(RELEASE_GID)" --rm --workdir /hubble --volume `pwd`:/hubble docker.io/library/golang:1.16.3-alpine3.13 \
+	docker run --env "RELEASE_UID=$(RELEASE_UID)" --env "RELEASE_GID=$(RELEASE_GID)" --rm --workdir /hubble --volume `pwd`:/hubble docker.io/library/golang:1.16.5-alpine3.13 \
 		sh -c "apk add --no-cache make && make local-release"
 
 local-release: clean
@@ -42,7 +46,7 @@ local-release: clean
 		for ARCH in $$ARCHS; do \
 			echo Building release binary for $$OS/$$ARCH...; \
 			test -d release/$$OS/$$ARCH|| mkdir -p release/$$OS/$$ARCH; \
-			env GOOS=$$OS GOARCH=$$ARCH $(GO) build $(if $(GO_TAGS),-tags $(GO_TAGS)) -ldflags "-w -s -X 'github.com/cilium/hubble/pkg.Version=${VERSION}'" -o release/$$OS/$$ARCH/$(TARGET)$$EXT; \
+			env GOOS=$$OS GOARCH=$$ARCH $(GO_BUILD) $(if $(GO_TAGS),-tags $(GO_TAGS)) -ldflags "-w -s -X 'github.com/cilium/hubble/pkg.Version=${VERSION}'" -o release/$$OS/$$ARCH/$(TARGET)$$EXT; \
 			tar -czf release/$(TARGET)-$$OS-$$ARCH.tar.gz -C release/$$OS/$$ARCH $(TARGET)$$EXT; \
 			(cd release && sha256sum $(TARGET)-$$OS-$$ARCH.tar.gz > $(TARGET)-$$OS-$$ARCH.tar.gz.sha256sum); \
 		done; \
@@ -61,32 +65,20 @@ clean:
 	rm -rf ./release
 
 test:
-	go test -timeout=$(TEST_TIMEOUT) -race -cover $$(go list ./...)
+	$(GO) test -timeout=$(TEST_TIMEOUT) -race -cover $$($(GO) list ./...)
 
 bench:
-	go test -timeout=30s -bench=. $$(go list ./...)
+	$(GO) test -timeout=30s -bench=. $$($(GO) list ./...)
 
-check: check-fmt ineffassign lint staticcheck vet
-
-check-fmt:
-	./contrib/scripts/check-fmt.sh
-
-ineffassign:
-	./tools/ineffassign .
-
-lint:
-	./tools/golint -set_exit_status $$(go list ./...)
-
-# Ignored staticcheck warnings:
-# - SA1019 deprecation warnings: https://staticcheck.io/docs/checks#SA1019
-# - ST1000 missing package comment: https://staticcheck.io/docs/checks#ST1000
-staticcheck:
-	./tools/staticcheck -checks="all,-SA1019,-ST1000" ./...
-
-vet:
-	go vet $$(go list ./...)
+ifneq (,$(findstring $(GOLANGCILINT_WANT_VERSION),$(GOLANGCILINT_VERSION)))
+check:
+	golangci-lint run
+else
+check:
+	docker run --rm -v `pwd`:/app -w /app docker.io/golangci/golangci-lint:v$(GOLANGCILINT_WANT_VERSION) golangci-lint run
+endif
 
 image:
 	$(CONTAINER_ENGINE) build $(DOCKER_FLAGS) -t $(IMAGE_REPOSITORY)$(if $(IMAGE_TAG),:$(IMAGE_TAG)) .
 
-.PHONY: all hubble release install clean test bench check check-fmt ineffassign lint vet image
+.PHONY: all hubble release install clean test bench check image

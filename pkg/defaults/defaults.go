@@ -21,6 +21,9 @@ import (
 )
 
 const (
+	// ServerAddress is the default server address.
+	ServerAddress = "localhost:4245"
+
 	// DialTimeout is the default timeout for dialing the server.
 	DialTimeout = 5 * time.Second
 
@@ -30,6 +33,10 @@ const (
 	// FlowPrintCount is the default number of flows to print on the hubble
 	// observe CLI.
 	FlowPrintCount = 20
+
+	// EventsPrintCount is the default number of agent/debug events to print
+	// on the hubble events CLI.
+	EventsPrintCount = 20
 
 	// TargetTLSPrefix is a scheme that indicates that the target connection
 	// requires TLS.

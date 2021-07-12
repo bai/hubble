@@ -25,6 +25,7 @@ import (
 	monitorAPI "github.com/cilium/cilium/pkg/monitor/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -56,7 +57,12 @@ func TestPrinter_WriteProtoFlow(t *testing.T) {
 			SubType: 133,
 		},
 		Summary: "TCP Flags: SYN",
+		IsReply: &wrapperspb.BoolValue{Value: false},
 	}
+	reply := proto.Clone(&f).(*pb.Flow)
+	reply.IsReply = &wrapperspb.BoolValue{Value: true}
+	unknown := proto.Clone(&f).(*pb.Flow)
+	unknown.IsReply = nil
 	type args struct {
 		f *pb.Flow
 	}
@@ -70,6 +76,7 @@ func TestPrinter_WriteProtoFlow(t *testing.T) {
 		{
 			name: "tabular",
 			options: []Option{
+				WithColor("never"),
 				Writer(&buf),
 			},
 			args: args{
@@ -82,6 +89,7 @@ Jan  1 00:20:34.567   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROPPED   T
 		{
 			name: "tabular-with-node",
 			options: []Option{
+				WithColor("never"),
 				WithNodeName(),
 				Writer(&buf),
 			},
@@ -96,6 +104,7 @@ Jan  1 00:20:34.567   k8s1   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROP
 			name: "compact",
 			options: []Option{
 				Compact(),
+				WithColor("never"),
 				Writer(&buf),
 			},
 			args: args{
@@ -110,6 +119,7 @@ Jan  1 00:20:34.567   k8s1   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROP
 			name: "compact-with-node",
 			options: []Option{
 				Compact(),
+				WithColor("never"),
 				WithNodeName(),
 				Writer(&buf),
 			},
@@ -122,9 +132,42 @@ Jan  1 00:20:34.567   k8s1   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROP
 				"Policy denied DROPPED (TCP Flags: SYN)\n",
 		},
 		{
+			name: "compact-reply",
+			options: []Option{
+				Compact(),
+				WithColor("never"),
+				WithNodeName(),
+				Writer(&buf),
+			},
+			args: args{
+				f: reply,
+			},
+			wantErr: false,
+			expected: "Jan  1 00:20:34.567 [k8s1]: " +
+				"2.2.2.2:8080 <- 1.1.1.1:31793 " +
+				"Policy denied DROPPED (TCP Flags: SYN)\n",
+		},
+		{
+			name: "compact-direction-unknown",
+			options: []Option{
+				Compact(),
+				WithColor("never"),
+				WithNodeName(),
+				Writer(&buf),
+			},
+			args: args{
+				f: unknown,
+			},
+			wantErr: false,
+			expected: "Jan  1 00:20:34.567 [k8s1]: " +
+				"1.1.1.1:31793 <> 2.2.2.2:8080 " +
+				"Policy denied DROPPED (TCP Flags: SYN)\n",
+		},
+		{
 			name: "json",
 			options: []Option{
 				JSON(),
+				WithColor("never"),
 				Writer(&buf),
 			},
 			args: args{
@@ -136,12 +179,14 @@ Jan  1 00:20:34.567   k8s1   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROP
 				`"IP":{"source":"1.1.1.1","destination":"2.2.2.2"},` +
 				`"l4":{"TCP":{"source_port":31793,"destination_port":8080}},` +
 				`"Type":"L3_L4","node_name":"k8s1",` +
-				`"event_type":{"type":1,"sub_type":133},"Summary":"TCP Flags: SYN"}`,
+				`"event_type":{"type":1,"sub_type":133},` +
+				`"is_reply":false,"Summary":"TCP Flags: SYN"}`,
 		},
 		{
 			name: "jsonpb",
 			options: []Option{
 				JSONPB(),
+				WithColor("never"),
 				Writer(&buf),
 			},
 			args: args{
@@ -153,12 +198,14 @@ Jan  1 00:20:34.567   k8s1   1.1.1.1:31793   2.2.2.2:8080   Policy denied   DROP
 				`"IP":{"source":"1.1.1.1","destination":"2.2.2.2"},` +
 				`"l4":{"TCP":{"source_port":31793,"destination_port":8080}},` +
 				`"Type":"L3_L4","node_name":"k8s1",` +
-				`"event_type":{"type":1,"sub_type":133},"Summary":"TCP Flags: SYN"}}`,
+				`"event_type":{"type":1,"sub_type":133},` +
+				`"is_reply":false,"Summary":"TCP Flags: SYN"}}`,
 		},
 		{
 			name: "dict",
 			options: []Option{
 				Dict(),
+				WithColor("never"),
 				Writer(&buf),
 			},
 			args: args{
@@ -176,6 +223,7 @@ DESTINATION: 2.2.2.2:8080
 			name: "dict-with-node",
 			options: []Option{
 				Dict(),
+				WithColor("never"),
 				WithNodeName(),
 				Writer(&buf),
 			},
